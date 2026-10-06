@@ -18,7 +18,7 @@ namespace Hazari.Cards
         public IReadOnlyList<string> SortedCardOrder => _sortedCardOrder;
         public bool IsSorted { get; private set; }
 
-        public bool DraggingEnabled => !IsSorted;
+        public bool DraggingEnabled => true;
 
         public void LoadDealt(IReadOnlyList<string> cardIds)
         {
@@ -33,6 +33,13 @@ namespace Hazari.Cards
             Replace(_currentCardOrder, cardIds);
             if (!IsSorted)
                 Replace(_manualCardOrder, cardIds);
+        }
+
+        public void AcceptRearrange(IReadOnlyList<string> cardIds)
+        {
+            Replace(_currentCardOrder, cardIds);
+            Replace(_manualCardOrder, cardIds);
+            IsSorted = false;
         }
 
         public bool RequestSort()

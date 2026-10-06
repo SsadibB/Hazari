@@ -9,11 +9,18 @@ namespace Hazari.Cards
     {
         public CardData Data { get; private set; }
         public bool HasData { get; private set; }
+        public int OwnerSeat { get; private set; } = -1;
+        public int PointValue => HasData ? CardValueCalculator.Points(Data) : 0;
 
         public void Bind(CardData data)
         {
             Data = data;
             HasData = true;
+        }
+
+        public void SetOwner(int seat)
+        {
+            OwnerSeat = seat;
         }
 
         public void Clear()
