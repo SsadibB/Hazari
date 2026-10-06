@@ -8,6 +8,7 @@ namespace Hazari.Rules
         public const int PlayerCount = 4;
         public const int CardsPerPlayer = 13;
         public const int DeckSize = 52;
+        public const int WinningScore = 1000;
         public static readonly int[] GroupSizes = { 3, 3, 3, 4 };
 
         public static int GroupStart(int groupIndex)

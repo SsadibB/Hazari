@@ -66,6 +66,12 @@ namespace Hazari.UI
                 cardUi.ShowFace(sprite);
         }
 
+        public void Present(Sprite sprite)
+        {
+            if (cardUi != null)
+                cardUi.ShowFace(sprite);
+        }
+
         public void SetOwner(int seat)
         {
             if (card != null)

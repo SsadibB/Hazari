@@ -18,8 +18,8 @@ namespace Hazari.UI
         public const float SideStep = 14f;
         public const float LeftRotation = -90f;
         public const float RightRotation = 90f;
-        public static readonly Vector2 CenterCardSize = new Vector2(108f, 150f);
-        public const float CenterStep = 104f;
+        public static readonly Vector2 CenterCardSize = new Vector2(90f, 126f);
+        public const float CenterStep = 86f;
         public const float GroupGap = 28f;
 
         public static void Place(RectTransform rect, int index, int count, bool vertical, Vector2 size, float step, float rotation)

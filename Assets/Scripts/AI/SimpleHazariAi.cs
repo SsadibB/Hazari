@@ -8,33 +8,14 @@ namespace Hazari.AI
     {
         public static List<CardData> Arrange(IReadOnlyList<CardData> dealt)
         {
-            var pool = new List<CardData>();
-            if (dealt != null)
-            {
-                for (var i = 0; i < dealt.Count; i++)
-                    pool.Add(dealt[i]);
-            }
+            if (dealt == null || dealt.Count != HazariRules.CardsPerPlayer)
+                return new List<CardData>(dealt ?? new CardData[0]);
 
-            var arranged = new List<CardData>();
-            for (var group = 0; group < HazariRules.GroupSizes.Length; group++)
-            {
-                var size = HazariRules.GroupSizes[group];
-                if (pool.Count == size)
-                {
-                    arranged.AddRange(pool);
-                    pool.Clear();
-                    break;
-                }
+            var solved = HazariGroupArrangementSolver.Solve(dealt);
+            if (solved.IsValid)
+                return new List<CardData>(solved.ArrangedCards);
 
-                var best = BestSubset(pool, size);
-                for (var i = 0; i < best.Count; i++)
-                {
-                    arranged.Add(best[i]);
-                    pool.Remove(best[i]);
-                }
-            }
-
-            return arranged;
+            return new List<CardData>(dealt);
         }
 
         static List<CardData> BestSubset(List<CardData> pool, int size)

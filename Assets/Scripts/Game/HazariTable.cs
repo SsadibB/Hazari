@@ -37,12 +37,18 @@ namespace Hazari.Game
         [SerializeField] Text resultTitle;
         [SerializeField] Text resultBody;
         [SerializeField] Text[] resultNames;
+        [SerializeField] Text[] resultRounds;
         [SerializeField] Text[] resultPoints;
         [SerializeField] RectTransform[] resultRows;
+        [SerializeField] Button nextRoundButton;
+        [SerializeField] Text nextRoundLabel;
         [SerializeField] CardView[] handCards;
         [SerializeField] Image[] opponentBacks;
         [SerializeField] Image[] tableCards;
         [SerializeField] RectTransform playedCards;
+        [SerializeField] DealDirectionArrow dealArrow;
+        [SerializeField] RectTransform deckPile;
+        [SerializeField] RectTransform[] shuffleCards;
         [SerializeField] RectTransform[] seatRoots;
         [SerializeField] RectTransform[] handRoots;
         [SerializeField] Text[] scoreLabels;
@@ -52,13 +58,16 @@ namespace Hazari.Game
 
         readonly CardData[][] _hands = new CardData[HazariRules.PlayerCount][];
         readonly int[] _scores = new int[HazariRules.PlayerCount];
+        readonly int[] _roundScores = new int[HazariRules.PlayerCount];
+        int _roundNumber;
+        /// <summary>Seat index (0-3) that receives the first card this round. Advances clockwise each round.</summary>
+        int _dealerSeat;
         readonly List<RectTransform> _centerCards = new List<RectTransform>();
         readonly List<Transform> _centerHomes = new List<Transform>();
         readonly int[][] _playSizes = new int[HazariRules.PlayerCount][];
         CardView _lifted;
         int _previewIndex = -1;
-        bool _advancePressed;
-        bool _waitingForHuman;
+        bool _playerHasManuallyArranged;
         bool _matchRunning;
         GameState _state = GameState.Waiting;
 
@@ -92,7 +101,21 @@ namespace Hazari.Game
             if (_matchRunning)
                 StopAllCoroutines();
 
-            StartCoroutine(OpenMatch());
+            StartCoroutine(OpenMatch(true));
+        }
+
+        public void NextRound()
+        {
+            if (LeaderScore() >= HazariRules.WinningScore)
+            {
+                NewMatch();
+                return;
+            }
+
+            if (_matchRunning)
+                StopAllCoroutines();
+
+            StartCoroutine(OpenMatch(false));
         }
 
         public void GoToMenu()
@@ -100,14 +123,29 @@ namespace Hazari.Game
             SceneManager.LoadScene(SceneNames.MainMenu);
         }
 
-        IEnumerator OpenMatch()
+        IEnumerator OpenMatch(bool resetScores)
         {
             _matchRunning = false;
             _previewIndex = -1;
             _state = GameState.Dealing;
             RestoreCardParents();
-            for (var i = 0; i < _scores.Length; i++)
-                _scores[i] = 0;
+            if (resetScores)
+            {
+                _roundNumber = 0;
+                _dealerSeat = 0;
+                for (var i = 0; i < _scores.Length; i++)
+                    _scores[i] = 0;
+            }
+            else
+            {
+                // Advance dealer one seat clockwise each round (Bottom=0 → Left=1 → Top=2 → Right=3 → …)
+                _dealerSeat = (_dealerSeat + 1) % HazariRules.PlayerCount;
+            }
+
+            _roundNumber++;
+            for (var i = 0; i < _roundScores.Length; i++)
+                _roundScores[i] = 0;
+            _playerHasManuallyArranged = false;
 
             if (resultPanel != null)
                 resultPanel.SetActive(false);
@@ -139,7 +177,7 @@ namespace Hazari.Game
                     player.DisplayName = SeatNames[seat];
                     player.IsLocalHuman = seat == 0;
                     player.IsAi = seat != 0;
-                    player.Score = 0;
+                    player.Score = _scores[seat];
                     player.Hand.SetCards(IdsOf(_hands[seat]));
                 }
             }
@@ -152,7 +190,7 @@ namespace Hazari.Game
 
             var dealtIds = IdsOf(_hands[0]);
             arrangement.LoadDealt(dealtIds);
-            ApplyOrder(dealtIds, false);
+            ApplyOrder(dealtIds, false, false);
             LayoutOpponentHands();
             HighlightGroup(-1);
             RefreshScores();
@@ -165,15 +203,21 @@ namespace Hazari.Game
             yield return DealFromCenter();
             SetState(GameState.Arranging);
             ShowCue(0, "Your Turn", true);
-            SetStatus("Arrange thirteen cards, then play.");
+            SetStatus("Arrange cards or press PLAY to auto-arrange.");
             if (turnUi != null)
-                turnUi.SetMessage("ARRANGE YOUR HAND");
+                turnUi.SetMessage("ARRANGE HAND");
             RefreshControls();
+
+            if (AutoPlay)
+            {
+                yield return new WaitForSeconds(0.4f);
+                OnPlayClicked();
+            }
         }
 
         public void Rematch()
         {
-            NewMatch();
+            NextRound();
         }
 
         public void OnSortClicked()
@@ -181,12 +225,14 @@ namespace Hazari.Game
             if (_state != GameState.Arranging)
                 return;
 
+            _playerHasManuallyArranged = false;
+
             if (arrangement.IsSorted)
                 arrangement.RequestUnsort();
             else
                 arrangement.RequestSort();
 
-            ApplyOrder(arrangement.CurrentCardOrder, true);
+            ApplyOrder(arrangement.CurrentCardOrder, true, false);
             SyncHumanHandFromViews();
             RefreshControls();
         }
@@ -196,23 +242,91 @@ namespace Hazari.Game
             if (_state == GameState.Arranging)
             {
                 SyncHumanHandFromViews();
-                StartCoroutine(PlayMatch());
-                return;
+                StartCoroutine(StartPlayFlow());
+            }
+        }
+
+        IEnumerator StartPlayFlow()
+        {
+            SetState(GameState.Playing);
+            ClearLift();
+
+            // Check if human player's hand needs expert auto arrangement
+            var currentCards = _hands[0];
+            var g1 = EvaluateGroup(0, 0, 3);
+            var g2 = EvaluateGroup(0, 3, 3);
+            var g3 = EvaluateGroup(0, 6, 3);
+            var isLegal = HazariRules.Compare(g1, g2) >= 0 && HazariRules.Compare(g2, g3) >= 0;
+
+            var solved = HazariGroupArrangementSolver.Solve(currentCards);
+            var shouldAutoArrange = !_playerHasManuallyArranged || !isLegal;
+
+            // Check if current cards already match the solved arrangement
+            var alreadyMatches = true;
+            for (var i = 0; i < currentCards.Length; i++)
+            {
+                if (currentCards[i].CardId != solved.ArrangedCards[i].CardId)
+                {
+                    alreadyMatches = false;
+                    break;
+                }
             }
 
-            if (_waitingForHuman)
-                _advancePressed = true;
+            if (shouldAutoArrange && !alreadyMatches)
+            {
+                SetStatus("Auto-arranging expert 3+3+3+4 groups...");
+                if (turnUi != null)
+                    turnUi.SetMessage("EXPERT ARRANGEMENT");
+                yield return AnimateToArrangement(solved.ArrangedCards);
+            }
+            else
+            {
+                LayoutHandRow(true, true);
+                RefreshGroupLabels();
+                yield return new WaitForSeconds(0.25f);
+            }
+
+            OrderHandsForPlay();
+            yield return PlayMatch();
+        }
+
+        IEnumerator AnimateToArrangement(CardData[] targetCards)
+        {
+            var ids = IdsOf(targetCards);
+            TryReorderViews(ids);
+
+            for (var i = 0; i < handCards.Length; i++)
+            {
+                if (handCards[i] == null)
+                    continue;
+
+                handCards[i].gameObject.SetActive(true);
+                handCards[i].SetOwner(0);
+                _hands[0][i] = handCards[i].Data;
+
+                var targetSlot = SeatFormation.Slot(i, handCards.Length, false, SeatFormation.BottomStep, true);
+                handCards[i].Rect.DOKill();
+                handCards[i].Rect.DOAnchorPos(targetSlot, 0.45f).SetEase(Ease.OutCubic);
+                handCards[i].Rect.DOLocalRotate(Vector3.zero, 0.45f);
+                handCards[i].SetHome(targetSlot, i, false);
+            }
+
+            if (arrangement != null)
+                arrangement.NotifyManualOrder(ids);
+            var player = players != null ? players.GetPlayer(0) : null;
+            if (player != null)
+                player.Hand.SetCards(ids);
+
+            RefreshGroupLabels();
+            RefreshControls();
+            yield return new WaitForSeconds(0.55f);
         }
 
         IEnumerator PlayMatch()
         {
             _matchRunning = true;
-            SetState(GameState.Playing);
-            ClearLift();
-            OrderHandsForPlay();
             if (turnUi != null)
-                turnUi.SetMessage("ORDERING HANDS");
-            yield return new WaitForSeconds(0.45f);
+                turnUi.SetMessage("PLAYING TRICKS");
 
             for (var group = 0; group < HazariRules.GroupSizes.Length; group++)
             {
@@ -221,27 +335,15 @@ namespace Hazari.Game
 
                 for (var seat = 0; seat < HazariRules.PlayerCount; seat++)
                 {
-                    ShowCue(seat, seat == 0 ? "Your Turn" : "Thinking", true);
-                    var waiting = seat == 0 ? "YOUR TURN" : "WAITING FOR " + SeatNames[seat].ToUpperInvariant();
+                    ShowCue(seat, seat == 0 ? "Playing" : "Thinking", true);
+                    var waiting = seat == 0 ? "YOUR TRICK" : SeatNames[seat].ToUpperInvariant() + "'S TRICK";
                     if (turnUi != null)
                         turnUi.SetMessage(AutoPlay && seat == 0 ? "AUTO PLAY" : waiting);
-                    SetStatus(SeatNames[seat] + " plays group " + (group + 1) + ".");
+                    SetStatus(SeatNames[seat] + " plays " + (group == 3 ? "4-card group" : "group " + (group + 1)) + ".");
                     RefreshControls();
 
-                    if (seat == 0 && !AutoPlay && group > 0)
-                    {
-                        _waitingForHuman = true;
-                        _advancePressed = false;
-                        RefreshControls();
-                        while (!_advancePressed)
-                            yield return null;
-                        _waitingForHuman = false;
-                        RefreshControls();
-                    }
-                    else if (seat != 0)
-                    {
-                        yield return new WaitForSeconds(0.4f);
-                    }
+                    if (seat != 0)
+                        yield return new WaitForSeconds(0.35f);
 
                     var start = GroupStart(seat, group);
                     var size = GroupSize(seat, group);
@@ -253,18 +355,59 @@ namespace Hazari.Game
                 RefreshScores();
                 ShowCue(winner, "Winner", true);
                 SetState(GameState.RoundResult);
-                yield return new WaitForSeconds(0.35f);
+                yield return new WaitForSeconds(0.45f);
                 yield return CollectCenter(winner);
                 ClearTable();
             }
 
-            ShowResult();
+            var matchOver = LeaderScore() >= HazariRules.WinningScore;
+            ShowResult(matchOver);
             _matchRunning = false;
+
+            if (AutoPlay && !matchOver)
+            {
+                yield return new WaitForSeconds(3.5f);
+                if (_state == GameState.MatchResult && LeaderScore() < HazariRules.WinningScore)
+                {
+                    NextRound();
+                }
+            }
         }
 
         IEnumerator DealFromCenter()
         {
-            var seats = new[] { 1, 2, 3, 0 };
+            // Hands are already assigned. This moves cards from center to players.
+            const float stagger = 0.06f;
+            const float flight = 0.38f;
+
+            // Arrow must stay HIDDEN for the entire deal phase.
+            // Do not call ShowToward or gameObject.SetActive(true) here.
+            if (dealArrow != null)
+            {
+                dealArrow.gameObject.SetActive(false);
+            }
+
+            // Park all 52 cards at center, invisible (scale = 0), back facing up.
+            ParkDealCards();
+
+            if (deckPile != null)
+            {
+                deckPile.gameObject.SetActive(true);
+                deckPile.localScale = Vector3.one;
+            }
+
+            yield return ShuffleDeck();
+
+            // Deck pile shrinks as cards leave it.
+            if (deckPile != null)
+                deckPile.DOScale(0.35f, HazariRules.DeckSize * stagger).SetEase(Ease.InQuad);
+
+            // Clockwise deal order starting from _dealerSeat:
+            // Seats cycle: _dealerSeat, (_dealerSeat+1)%4, (_dealerSeat+2)%4, (_dealerSeat+3)%4
+            var seats = new int[HazariRules.PlayerCount];
+            for (var i = 0; i < seats.Length; i++)
+                seats[i] = (_dealerSeat + i) % HazariRules.PlayerCount;
+
             var steps = 0;
             for (var round = 0; round < HazariRules.CardsPerPlayer; round++)
             {
@@ -278,19 +421,194 @@ namespace Hazari.Game
                     var parent = (RectTransform)rect.parent;
                     var center = CenterInParent(parent);
                     var slot = HandSlot(seat, round);
-                    var delay = steps * 0.038f;
+                    var delay = steps * stagger;
+
+                    // Capture loop variables for closure.
+                    var capturedSeat = seat;
+                    var capturedIndex = round;
+                    var capturedStep = steps;
+                    var capturedRect = rect;
+                    var capturedCenter = center;
+
+                    // Keep card INVISIBLE (scale=0) until this card's sequence actually starts.
+                    // Do NOT set localScale here or all 52 cards would immediately appear as small.
                     rect.DOKill();
-                    rect.anchoredPosition = center + new Vector2((steps % 4) * 1.5f, (steps % 3) * 1.2f);
-                    rect.localRotation = Quaternion.Euler(0f, 0f, ((steps % 5) - 2) * 4f);
-                    rect.localScale = Vector3.one * 0.72f;
-                    rect.DOAnchorPos(slot, 0.34f).SetDelay(delay).SetEase(Ease.OutCubic);
-                    rect.DOLocalRotate(HandRotation(seat), 0.34f).SetDelay(delay);
-                    rect.DOScale(1f, 0.34f).SetDelay(delay).SetEase(Ease.OutCubic);
+                    ShowDealBack(rect);          // pre-assign back sprite while still hidden
+                    rect.localScale = Vector3.zero;
+                    rect.anchoredPosition = center;
+                    rect.localRotation = Quaternion.identity;
+
+                    var sequence = DOTween.Sequence();
+                    sequence.SetDelay(delay);
+                    sequence.OnStart(() =>
+                    {
+                        // Card becomes visible at deck scale only when its turn comes.
+                        var startScale = DealStartScale(capturedRect);
+                        var wobble = ((capturedStep % 5) - 2) * 5f;
+                        capturedRect.localScale = Vector3.one * startScale;
+                        capturedRect.localRotation = Quaternion.Euler(0f, 0f, wobble);
+                        capturedRect.anchoredPosition =
+                            capturedCenter + new Vector2((capturedStep % 3) - 1f, (capturedStep % 2) * 1.5f);
+                    });
+                    sequence.Append(rect.DOAnchorPos(slot, flight).SetEase(Ease.OutCubic));
+                    sequence.Join(rect.DOScale(1f, flight).SetEase(Ease.OutCubic));
+                    sequence.Join(rect.DOLocalRotate(HandRotation(capturedSeat), flight));
+                    sequence.OnComplete(() => RevealDealtCard(capturedSeat, capturedIndex));
                     steps++;
                 }
             }
 
-            yield return new WaitForSeconds(steps * 0.038f + 0.36f);
+            // Wait for every card to finish animating.
+            yield return new WaitForSeconds(steps * stagger + flight + 0.4f);
+
+            // --- Full center cleanup: no stray card should remain ---
+
+            // Hide deckPile.
+            if (deckPile != null)
+            {
+                deckPile.DOKill();
+                deckPile.localScale = Vector3.zero;
+                deckPile.gameObject.SetActive(false);
+            }
+
+            // Ensure all shuffleCards are inactive.
+            if (shuffleCards != null)
+            {
+                for (var i = 0; i < shuffleCards.Length; i++)
+                {
+                    if (shuffleCards[i] != null)
+                    {
+                        shuffleCards[i].DOKill();
+                        shuffleCards[i].gameObject.SetActive(false);
+                    }
+                }
+            }
+
+            // Arrow stays hidden throughout the deal phase.
+            // It will only be shown when CollectCenter is called (trick collection).
+        }
+
+        void ParkDealCards()
+        {
+            // Park every deal card at the center, completely invisible.
+            // Cards stay at scale=0 until their individual DOTween sequence fires (in OnStart).
+            for (var seat = 0; seat < HazariRules.PlayerCount; seat++)
+            {
+                for (var index = 0; index < HazariRules.CardsPerPlayer; index++)
+                {
+                    var rect = CardRect(seat, index);
+                    if (rect == null)
+                        continue;
+
+                    var parent = (RectTransform)rect.parent;
+                    rect.DOKill();
+                    rect.anchoredPosition = CenterInParent(parent);
+                    rect.localScale = Vector3.zero;   // invisible – remains zero until OnStart
+                    rect.localRotation = Quaternion.identity;
+                    ShowDealBack(rect);
+                }
+            }
+        }
+
+        IEnumerator ShuffleDeck()
+        {
+            if (shuffleCards == null || shuffleCards.Length == 0)
+                yield break;
+
+            for (var i = 0; i < shuffleCards.Length; i++)
+            {
+                var card = shuffleCards[i];
+                if (card == null)
+                    continue;
+
+                card.gameObject.SetActive(true);
+                card.DOKill();
+                card.anchoredPosition = Vector2.zero;
+                card.localRotation = Quaternion.identity;
+                card.localScale = Vector3.one * 0.86f;
+                var spread = (i - (shuffleCards.Length - 1) * 0.5f) * 22f;
+                card.DOAnchorPos(new Vector2(spread, 8f), 0.22f).SetEase(Ease.OutCubic);
+                card.DOLocalRotate(new Vector3(0f, 0f, spread * 0.45f), 0.22f);
+            }
+
+            yield return new WaitForSeconds(0.26f);
+
+            for (var i = 0; i < shuffleCards.Length; i++)
+            {
+                var card = shuffleCards[i];
+                if (card == null)
+                    continue;
+
+                card.DOAnchorPos(new Vector2(i * 1.5f, i * 1.5f), 0.18f).SetEase(Ease.InCubic);
+                card.DOLocalRotate(Vector3.zero, 0.18f);
+            }
+
+            yield return new WaitForSeconds(0.2f);
+
+            for (var i = 0; i < shuffleCards.Length; i++)
+            {
+                if (shuffleCards[i] != null)
+                    shuffleCards[i].gameObject.SetActive(false);
+            }
+        }
+
+        void ShowDealBack(RectTransform rect)
+        {
+            if (library == null || library.CardBack == null || rect == null)
+                return;
+
+            var view = rect.GetComponent<CardView>();
+            if (view != null)
+            {
+                view.Present(library.CardBack);
+                return;
+            }
+
+            var image = rect.GetComponent<Image>();
+            if (image != null)
+                image.sprite = library.CardBack;
+        }
+
+        void RevealDealtCard(int seat, int index)
+        {
+            if (seat != 0 || handCards == null || index >= handCards.Length || handCards[index] == null)
+                return;
+
+            var view = handCards[index];
+            if (string.IsNullOrEmpty(view.Data.CardId))
+                return;
+
+            var face = library.GetFace(view.Data.CardId);
+            var rect = view.Rect;
+            rect.DOKill();
+            rect.localScale = Vector3.one;
+
+            // Card reached hand with back visible.
+            // Smoothly flip around Y axis using DOTween:
+            // 1. Rotate Y to 90 degrees (card turns edge-on)
+            // 2. Change sprite to card face at edge-on
+            // 3. Rotate Y from -90 degrees back to 0 degrees to reveal front face
+            var flip = DOTween.Sequence();
+            flip.Append(rect.DOLocalRotate(new Vector3(0f, 90f, 0f), 0.14f).SetEase(Ease.InQuad));
+            flip.AppendCallback(() =>
+            {
+                view.Present(face);
+                rect.localRotation = Quaternion.Euler(0f, -90f, 0f);
+            });
+            flip.Append(rect.DOLocalRotate(Vector3.zero, 0.16f).SetEase(Ease.OutQuad));
+            flip.OnComplete(() =>
+            {
+                rect.localRotation = Quaternion.identity;
+                rect.localScale = Vector3.one;
+            });
+        }
+
+        static float DealStartScale(RectTransform rect)
+        {
+            var height = rect.sizeDelta.y;
+            if (height < 1f)
+                return 0.35f;
+            return Mathf.Clamp(34f / height, 0.14f, 0.7f);
         }
 
         RectTransform CardRect(int seat, int index)
@@ -341,8 +659,22 @@ namespace Hazari.Game
 
         void OrderHandsForPlay()
         {
-            for (var seat = 0; seat < HazariRules.PlayerCount; seat++)
+            // Human player: ensure 3-card groups are strongest first, and 4-card group is last
+            int[] humanSizes;
+            GroupOrder.OrderStrongestFirst(_hands[0], out humanSizes);
+            _playSizes[0] = humanSizes;
+            var humanPlayer = players != null ? players.GetPlayer(0) : null;
+            if (humanPlayer != null)
+                humanPlayer.Hand.SetCards(IdsOf(_hands[0]));
+
+            ApplyOrder(IdsOf(_hands[0]), true, true);
+            if (arrangement != null)
+                arrangement.NotifyManualOrder(IdsOf(_hands[0]));
+
+            // Opponent AI players
+            for (var seat = 1; seat < HazariRules.PlayerCount; seat++)
             {
+                _hands[seat] = ToArray(SimpleHazariAi.Arrange(_hands[seat]));
                 int[] sizes;
                 GroupOrder.OrderStrongestFirst(_hands[seat], out sizes);
                 _playSizes[seat] = sizes;
@@ -350,10 +682,6 @@ namespace Hazari.Game
                 if (player != null)
                     player.Hand.SetCards(IdsOf(_hands[seat]));
             }
-
-            ApplyOrder(IdsOf(_hands[0]), true);
-            if (arrangement != null)
-                arrangement.NotifyManualOrder(IdsOf(_hands[0]));
         }
 
         int GroupSize(int seat, int group)
@@ -458,6 +786,9 @@ namespace Hazari.Game
                 ? seatRoots[winnerSeat].position
                 : playedCards.position;
 
+            if (dealArrow != null)
+                dealArrow.ShowToward(winnerSeat);
+
             for (var i = 0; i < _centerCards.Count; i++)
             {
                 var rect = _centerCards[i];
@@ -470,6 +801,8 @@ namespace Hazari.Game
             }
 
             yield return new WaitForSeconds(0.52f);
+            if (dealArrow != null)
+                dealArrow.Hide();
 
             for (var i = 0; i < _centerCards.Count; i++)
             {
@@ -531,6 +864,7 @@ namespace Hazari.Game
             {
                 var seat = winners[i];
                 var points = share + (i < remainder ? 1 : 0);
+                _roundScores[seat] += points;
                 _scores[seat] += points;
                 var player = players != null ? players.GetPlayer(seat) : null;
                 if (player != null)
@@ -549,7 +883,19 @@ namespace Hazari.Game
             return winners.Count > 0 ? winners[0] : 0;
         }
 
-        void ShowResult()
+        int LeaderScore()
+        {
+            var best = 0;
+            for (var i = 1; i < _scores.Length; i++)
+            {
+                if (_scores[i] > best)
+                    best = _scores[i];
+            }
+
+            return best;
+        }
+
+        void ShowResult(bool matchOver)
         {
             SetState(GameState.MatchResult);
             var best = 0;
@@ -568,20 +914,28 @@ namespace Hazari.Game
 
             if (resultTitle != null)
             {
-                if (tied > 1)
+                if (!matchOver)
+                    resultTitle.text = "ROUND " + _roundNumber + " RESULT";
+                else if (tied > 1)
                     resultTitle.text = "MATCH TIED";
                 else if (best == 0)
-                    resultTitle.text = "YOU WON";
+                    resultTitle.text = "YOU WON THE MATCH!";
                 else
-                    resultTitle.text = SeatNames[best].ToUpperInvariant() + " WON";
+                    resultTitle.text = SeatNames[best].ToUpperInvariant() + " WINS THE MATCH!";
             }
 
             if (resultBody != null)
             {
-                var lines = new string[SeatNames.Length];
-                for (var i = 0; i < SeatNames.Length; i++)
-                    lines[i] = SeatNames[i].PadRight(12) + _scores[i];
-                resultBody.text = string.Join("\n", lines);
+                resultBody.text = matchOver
+                    ? "Winner reached " + _scores[best] + " total points! (Goal: 1000)"
+                    : "Totals carry forward. First player to 1000 wins!";
+            }
+
+            if (nextRoundButton != null)
+            {
+                nextRoundButton.gameObject.SetActive(true);
+                if (nextRoundLabel != null)
+                    nextRoundLabel.text = matchOver ? "PLAY AGAIN" : "NEXT ROUND";
             }
 
             for (var i = 0; i < SeatNames.Length; i++)
@@ -597,24 +951,27 @@ namespace Hazari.Game
                     row.DOScale(1f, 0.22f).SetDelay(0.08f * i).SetEase(Ease.OutCubic);
                 }
 
+                if (resultRounds != null && i < resultRounds.Length && resultRounds[i] != null)
+                    resultRounds[i].text = "+" + _roundScores[i];
+
                 if (resultPoints != null && i < resultPoints.Length && resultPoints[i] != null)
                 {
                     var label = resultPoints[i];
                     var score = _scores[i];
-                    var shown = 0;
-                    label.text = "0";
+                    var shown = score - _roundScores[i];
+                    label.text = shown.ToString();
+                    label.transform.DOKill();
+                    label.transform.localScale = Vector3.one;
                     DOTween.To(() => shown, value =>
                     {
                         shown = value;
                         label.text = shown.ToString();
-                    }, score, 0.45f).SetDelay(0.12f * i);
-                    label.color = i == best ? new Color(1f, 0.84f, 0.28f) : Color.white;
-                    if (i == best)
-                    {
-                        label.transform.DOKill();
-                        label.transform.localScale = Vector3.one;
-                        label.transform.DOScale(1.08f, 0.35f).SetLoops(-1, LoopType.Yoyo).SetDelay(0.5f);
-                    }
+                    }, score, 0.6f).SetDelay(0.12f * i).SetEase(Ease.OutCubic);
+                    label.color = (i == best && matchOver)
+                        ? new Color(1f, 0.84f, 0.28f)
+                        : (i == best ? new Color(0.95f, 0.9f, 0.6f) : Color.white);
+                    if (matchOver && i == best)
+                        label.transform.DOScale(1.15f, 0.4f).SetLoops(-1, LoopType.Yoyo).SetDelay(0.6f);
                 }
             }
 
@@ -627,12 +984,12 @@ namespace Hazari.Game
             }
 
             if (turnUi != null)
-                turnUi.SetMessage("MATCH RESULT");
+                turnUi.SetMessage(matchOver ? "MATCH OVER" : "ROUND " + _roundNumber);
             ShowCue(-1, null, false);
             RefreshControls();
         }
 
-        void ApplyOrder(IReadOnlyList<string> cardIds, bool animate)
+        void ApplyOrder(IReadOnlyList<string> cardIds, bool animate, bool groupGaps = false)
         {
             if (!TryReorderViews(cardIds))
             {
@@ -658,7 +1015,7 @@ namespace Hazari.Game
                 }
             }
 
-            LayoutHandRow(animate);
+            LayoutHandRow(animate, groupGaps);
             RefreshGroupLabels();
             RefreshDrag();
         }
@@ -694,7 +1051,7 @@ namespace Hazari.Game
             return true;
         }
 
-        void LayoutHandRow(bool animate)
+        void LayoutHandRow(bool animate, bool groupGaps = false)
         {
             if (handCards == null)
                 return;
@@ -715,7 +1072,7 @@ namespace Hazari.Game
                 rect.sizeDelta = SeatFormation.BottomCardSize;
                 if (!visible[i].IsDragging)
                     rect.localRotation = Quaternion.identity;
-                var slot = SeatFormation.Slot(i, visible.Count, false, SeatFormation.BottomStep, false);
+                var slot = SeatFormation.Slot(i, visible.Count, false, SeatFormation.BottomStep, groupGaps);
                 visible[i].SetHome(slot, i, animate && !visible[i].IsDragging);
             }
         }
@@ -857,7 +1214,7 @@ namespace Hazari.Game
             _previewIndex = -1;
             if (_state != GameState.Arranging)
             {
-                LayoutHandRow(true);
+                LayoutHandRow(true, true);
                 return;
             }
 
@@ -873,11 +1230,12 @@ namespace Hazari.Game
             for (var i = 0; i < handCards.Length && i < ordered.Count; i++)
                 handCards[i] = ordered[i];
 
+            _playerHasManuallyArranged = true;
             ClearLift();
             SyncHumanHandFromViews();
             if (arrangement != null)
                 arrangement.AcceptRearrange(arrangement.CurrentCardOrder);
-            LayoutHandRow(true);
+            LayoutHandRow(true, true);
             RefreshGroupLabels();
             RefreshControls();
         }
@@ -898,7 +1256,7 @@ namespace Hazari.Game
                 if (ordered[i] == dragged)
                     continue;
 
-                var slot = SeatFormation.Slot(i, ordered.Count, false, SeatFormation.BottomStep, false);
+                var slot = SeatFormation.Slot(i, ordered.Count, false, SeatFormation.BottomStep, true);
                 ordered[i].SetHome(slot, i, true);
             }
         }
@@ -920,7 +1278,7 @@ namespace Hazari.Game
             var bestDistance = float.MaxValue;
             for (var i = 0; i < count; i++)
             {
-                var slot = SeatFormation.Slot(i, count, false, SeatFormation.BottomStep, false);
+                var slot = SeatFormation.Slot(i, count, false, SeatFormation.BottomStep, true);
                 var distance = Mathf.Abs(slot.x - x);
                 if (distance < bestDistance)
                 {
@@ -972,25 +1330,19 @@ namespace Hazari.Game
             if (sortLabel != null)
                 sortLabel.text = arrangement != null && arrangement.IsSorted ? "UNSORT" : "SORT";
             if (playLabel != null)
-            {
-                if (arranging)
-                    playLabel.text = "PLAY";
-                else if (_state == GameState.Playing)
-                    playLabel.text = "PLAY";
-                else
-                    playLabel.text = "PLAY";
-            }
+                playLabel.text = "PLAY";
 
             if (playButton != null)
-                playButton.interactable = arranging || _waitingForHuman;
+                playButton.interactable = arranging;
         }
 
         void RefreshScores()
         {
+            // Avatar labels show only this round's points; cumulative totals live in the result panel.
             for (var i = 0; i < scoreLabels.Length; i++)
             {
                 if (scoreLabels[i] != null)
-                    scoreLabels[i].text = "Score Taken: " + _scores[i];
+                    scoreLabels[i].text = _roundScores[i].ToString();
             }
         }
 

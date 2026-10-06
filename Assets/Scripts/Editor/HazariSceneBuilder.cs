@@ -88,6 +88,10 @@ namespace Hazari.EditorTools
             boardImage.raycastTarget = false;
 
             var center = CreateRect(table.transform, "CenterArea", new Vector2(0f, 24f), new Vector2(560f, 380f));
+            var deckPile = CreateDeckPile(center, back);
+            var shuffle = CreateShuffleCards(center, back);
+            var arrowSprite = LoadSprite("Assets/Art/Arrow.png");
+            var arrow = CreateDealArrow(center, arrowSprite);
             var played = CreateRect(center, "PlayedCards", Vector2.zero, new Vector2(560f, 380f));
 
             var players = CreateRect(table.transform, "Players", Vector2.zero, Vector2.zero);
@@ -117,7 +121,7 @@ namespace Hazari.EditorTools
             var left = CreateRect(players, "LeftPlayer", new Vector2(-704f, 103f), new Vector2(280f, 280f));
             CreateAvatar(left, avatars[1], Vector2.zero, 56f);
             CreateName(left, font, "Player 2", 16, new Vector2(0f, -38f), new Vector2(150f, 24f));
-            scoreLabels[1] = CreateScore(left, font, 14, new Vector2(0f, -64f), new Vector2(156f, 36f));
+            scoreLabels[1] = CreateScore(left, font, 14, new Vector2(0f, -64f), new Vector2(180f, 36f));
             var leftHand = CreateRect(left, "HandCards", new Vector2(128f, -79f), new Vector2(80f, 230f));
             PlaceBacks(leftHand, backs, back, 0, true, SeatFormation.SideCardSize, SeatFormation.SideStep, SeatFormation.LeftRotation);
             decisions[1] = CreateDecision(left, font, new Vector2(0f, -92f));
@@ -127,7 +131,7 @@ namespace Hazari.EditorTools
             PlaceBacks(rightHand, backs, back, 26, true, SeatFormation.SideCardSize, SeatFormation.SideStep, SeatFormation.RightRotation);
             CreateAvatar(right, avatars[3], Vector2.zero, 56f);
             CreateName(right, font, "Player 4", 16, new Vector2(0f, -38f), new Vector2(150f, 24f));
-            scoreLabels[3] = CreateScore(right, font, 14, new Vector2(0f, -64f), new Vector2(156f, 36f));
+            scoreLabels[3] = CreateScore(right, font, 14, new Vector2(0f, -64f), new Vector2(180f, 36f));
             decisions[3] = CreateDecision(right, font, new Vector2(0f, -92f));
             center.SetAsLastSibling();
 
@@ -163,6 +167,7 @@ namespace Hazari.EditorTools
             AnchorBottomRight((RectTransform)autoPlay.transform, new Vector2(-490f, 28f), new Vector2(210f, 48f));
 
             var resultNames = new Text[4];
+            var resultRounds = new Text[4];
             var resultPoints = new Text[4];
             var resultRows = new RectTransform[4];
             var result = CreateImage(root, "ResultPanel", panel, new Color(0.05f, 0.16f, 0.28f, 0.97f), Vector2.zero, new Vector2(820f, 680f));
@@ -170,8 +175,9 @@ namespace Hazari.EditorTools
             AddShadow(heading);
             var resultTitle = CreateText(result.transform, "ResultTitle", font, "YOU WON", 46, new Color(1f, 0.55f, 0.35f), new Vector2(0f, 220f), new Vector2(700f, 64f), FontStyle.Bold);
             AddShadow(resultTitle);
-            CreateText(result.transform, "ColumnNames", font, "PLAYER", 18, new Color(0.75f, 0.9f, 0.92f), new Vector2(-180f, 160f), new Vector2(220f, 30f), FontStyle.Bold);
-            CreateText(result.transform, "ColumnPoints", font, "POINTS", 18, new Color(0.75f, 0.9f, 0.92f), new Vector2(220f, 160f), new Vector2(160f, 30f), FontStyle.Bold);
+            CreateText(result.transform, "ColumnNames", font, "PLAYER", 18, new Color(0.75f, 0.9f, 0.92f), new Vector2(-200f, 160f), new Vector2(180f, 30f), FontStyle.Bold);
+            CreateText(result.transform, "ColumnRound", font, "ROUND", 18, new Color(0.75f, 0.9f, 0.92f), new Vector2(130f, 160f), new Vector2(110f, 30f), FontStyle.Bold);
+            CreateText(result.transform, "ColumnPoints", font, "TOTAL", 18, new Color(0.75f, 0.9f, 0.92f), new Vector2(270f, 160f), new Vector2(120f, 30f), FontStyle.Bold);
             var resultBody = CreateText(result.transform, "ResultBody", font, "", 22, Color.white, new Vector2(0f, -250f), new Vector2(700f, 30f), FontStyle.Bold);
             for (var i = 0; i < 4; i++)
             {
@@ -179,13 +185,14 @@ namespace Hazari.EditorTools
                 resultRows[i] = (RectTransform)row.transform;
                 var portrait = CreateImage(row.transform, "Avatar", avatars[i], Color.white, new Vector2(-300f, 0f), new Vector2(52f, 52f));
                 portrait.GetComponent<Image>().preserveAspect = true;
-                resultNames[i] = CreateText(row.transform, "Name", font, SeatLabel(i), 26, Color.white, new Vector2(-40f, 0f), new Vector2(280f, 40f), FontStyle.Bold);
+                resultNames[i] = CreateText(row.transform, "Name", font, SeatLabel(i), 26, Color.white, new Vector2(-90f, 0f), new Vector2(220f, 40f), FontStyle.Bold);
                 resultNames[i].alignment = TextAnchor.MiddleLeft;
-                resultPoints[i] = CreateText(row.transform, "Points", font, "0", 32, new Color(1f, 0.86f, 0.35f), new Vector2(260f, 0f), new Vector2(140f, 44f), FontStyle.Bold);
+                resultRounds[i] = CreateText(row.transform, "Round", font, "+0", 24, new Color(0.8f, 0.95f, 0.9f), new Vector2(130f, 0f), new Vector2(100f, 40f), FontStyle.Bold);
+                resultPoints[i] = CreateText(row.transform, "Points", font, "0", 32, new Color(1f, 0.86f, 0.35f), new Vector2(270f, 0f), new Vector2(120f, 44f), FontStyle.Bold);
             }
 
-            var rematchButton = CreateButton(result.transform, "RematchButton", panel, font, "REMATCH", new Vector2(-150f, -280f), new Color(0.95f, 0.62f, 0.15f), out _);
-            ((RectTransform)rematchButton.transform).sizeDelta = new Vector2(240f, 64f);
+            var nextRoundButton = CreateButton(result.transform, "NextRoundButton", panel, font, "NEXT ROUND", new Vector2(-150f, -280f), new Color(0.95f, 0.62f, 0.15f), out var nextRoundLabel);
+            ((RectTransform)nextRoundButton.transform).sizeDelta = new Vector2(240f, 64f);
             var menuButton = CreateButton(result.transform, "MenuButton", panel, font, "MAIN MENU", new Vector2(150f, -280f), new Color(0.12f, 0.55f, 0.62f), out _);
             ((RectTransform)menuButton.transform).sizeDelta = new Vector2(240f, 64f);
             result.SetActive(false);
@@ -217,12 +224,18 @@ namespace Hazari.EditorTools
             tableObject.FindProperty("resultTitle").objectReferenceValue = resultTitle;
             tableObject.FindProperty("resultBody").objectReferenceValue = resultBody;
             AssignArray(tableObject.FindProperty("resultNames"), resultNames);
+            AssignArray(tableObject.FindProperty("resultRounds"), resultRounds);
             AssignArray(tableObject.FindProperty("resultPoints"), resultPoints);
+            tableObject.FindProperty("nextRoundButton").objectReferenceValue = nextRoundButton;
+            tableObject.FindProperty("nextRoundLabel").objectReferenceValue = nextRoundLabel;
             AssignArray(tableObject.FindProperty("resultRows"), resultRows);
             AssignArray(tableObject.FindProperty("handCards"), hand);
             AssignArray(tableObject.FindProperty("opponentBacks"), backs);
             AssignArray(tableObject.FindProperty("tableCards"), tableCards);
             tableObject.FindProperty("playedCards").objectReferenceValue = played;
+            tableObject.FindProperty("dealArrow").objectReferenceValue = arrow;
+            tableObject.FindProperty("deckPile").objectReferenceValue = deckPile;
+            AssignArray(tableObject.FindProperty("shuffleCards"), shuffle);
             AssignArray(tableObject.FindProperty("seatRoots"), new Object[] { bottom, left, top, right });
             AssignArray(tableObject.FindProperty("handRoots"), new Object[] { bottomHand, leftHand, topHand, rightHand });
             AssignArray(tableObject.FindProperty("scoreLabels"), scoreLabels);
@@ -233,7 +246,7 @@ namespace Hazari.EditorTools
 
             UnityEventTools.AddPersistentListener(sortButton.onClick, match.OnSortClicked);
             UnityEventTools.AddPersistentListener(playButton.onClick, match.OnPlayClicked);
-            UnityEventTools.AddPersistentListener(rematchButton.onClick, match.Rematch);
+            UnityEventTools.AddPersistentListener(nextRoundButton.onClick, match.NextRound);
             UnityEventTools.AddPersistentListener(menuButton.onClick, match.GoToMenu);
 
             Directory.CreateDirectory("Assets/Scenes/Game");
@@ -247,6 +260,7 @@ namespace Hazari.EditorTools
         {
             Debug.Log(HandEvaluator.SelfCheck());
             Debug.Log(CardValueCalculator.SelfCheck());
+            Debug.Log(HazariGroupArrangementSolver.SelfCheck());
         }
 
         static void PlaceHand(RectTransform handRoot, CardView[] hand, Dictionary<string, Sprite> faces)
@@ -317,7 +331,7 @@ namespace Hazari.EditorTools
 
         static Text CreateScore(Transform parent, Font font, int size, Vector2 position, Vector2 bounds)
         {
-            var text = CreateText(parent, "Score", font, "Score Taken: 0", size, new Color(1f, 0.84f, 0.42f), position, bounds, FontStyle.Bold);
+            var text = CreateText(parent, "Score", font, "Total: 0", size, new Color(1f, 0.84f, 0.42f), position, bounds, FontStyle.Bold);
             AddShadow(text);
             return text;
         }
@@ -355,6 +369,54 @@ namespace Hazari.EditorTools
             shadow.effectColor = new Color(0f, 0f, 0f, 0.8f);
             shadow.effectDistance = new Vector2(0f, -1f);
             shadow.useGraphicAlpha = true;
+        }
+
+        static RectTransform CreateDeckPile(Transform parent, Sprite back)
+        {
+            var pile = CreateRect(parent, "Deck", Vector2.zero, new Vector2(70f, 96f));
+            for (var i = 0; i < 3; i++)
+            {
+                var card = CreateImage(pile, "DeckCard" + i, back, Color.white, new Vector2(i * 2f, i * 2f), new Vector2(46f, 64f));
+                var image = card.GetComponent<Image>();
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+            }
+
+            return pile;
+        }
+
+        static RectTransform[] CreateShuffleCards(Transform parent, Sprite back)
+        {
+            var root = CreateRect(parent, "ShuffleCards", Vector2.zero, new Vector2(180f, 90f));
+            var cards = new RectTransform[5];
+            for (var i = 0; i < cards.Length; i++)
+            {
+                var card = CreateImage(root, "ShuffleCard" + i, back, Color.white, Vector2.zero, new Vector2(46f, 64f));
+                var image = card.GetComponent<Image>();
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+                card.SetActive(false);
+                cards[i] = (RectTransform)card.transform;
+            }
+
+            return cards;
+        }
+
+        static DealDirectionArrow CreateDealArrow(Transform parent, Sprite arrowSprite)
+        {
+            var root = CreateRect(parent, "DealDirectionArrow", Vector2.zero, new Vector2(150f, 90f));
+            var group = root.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.interactable = false;
+            var visualObject = CreateImage(root, "Visual", arrowSprite, Color.white, Vector2.zero, new Vector2(150f, 90f));
+            var image = visualObject.GetComponent<Image>();
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            var arrow = root.gameObject.AddComponent<DealDirectionArrow>();
+            SetRef(arrow, "visual", visualObject.transform);
+            SetRef(arrow, "canvasGroup", group);
+            root.gameObject.SetActive(false);
+            return arrow;
         }
 
         static string SeatLabel(int seat)
