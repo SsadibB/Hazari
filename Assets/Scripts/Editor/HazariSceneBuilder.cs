@@ -87,12 +87,12 @@ namespace Hazari.EditorTools
             boardImage.preserveAspect = true;
             boardImage.raycastTarget = false;
 
-            var center = CreateRect(table.transform, "CenterArea", new Vector2(0f, 24f), new Vector2(560f, 380f));
+            var center = CreateRect(table.transform, "CenterArea", new Vector2(0f, 24f), new Vector2(640f, 440f));
             var deckPile = CreateDeckPile(center, back);
             var shuffle = CreateShuffleCards(center, back);
             var arrowSprite = LoadSprite("Assets/Art/Arrow.png");
             var arrow = CreateDealArrow(center, arrowSprite);
-            var played = CreateRect(center, "PlayedCards", Vector2.zero, new Vector2(560f, 380f));
+            var played = CreateRect(center, "PlayedCards", Vector2.zero, new Vector2(640f, 440f));
 
             var players = CreateRect(table.transform, "Players", Vector2.zero, Vector2.zero);
             StretchFull(players);
@@ -102,44 +102,44 @@ namespace Hazari.EditorTools
             var scoreLabels = new Text[4];
             var decisions = new GameObject[4];
 
-            var bottom = CreateRect(players, "BottomPlayer", new Vector2(0f, -300f), new Vector2(1400f, 380f));
-            var bottomHand = CreateRect(bottom, "HandCards", Vector2.zero, new Vector2(1380f, 200f));
+            var bottom = CreateRect(players, "BottomPlayer", new Vector2(0f, -270f), new Vector2(1650f, 420f));
+            var bottomHand = CreateRect(bottom, "HandCards", new Vector2(0f, 30f), new Vector2(1640f, 245f));
             PlaceHand(bottomHand, hand, faces);
-            CreateAvatar(bottom, avatars[0], new Vector2(0f, -136f), 60f);
-            CreateName(bottom, font, "You", 20, new Vector2(0f, -178f), new Vector2(240f, 26f));
-            scoreLabels[0] = CreateScore(bottom, font, 18, new Vector2(0f, -206f), new Vector2(280f, 26f));
-            decisions[0] = CreateDecision(bottom, font, new Vector2(78f, -178f));
+            CreateAvatar(bottom, avatars[0], new Vector2(0f, -140f), 88f);
+            CreateName(bottom, font, "You", 26, new Vector2(0f, -196f), new Vector2(260f, 32f));
+            scoreLabels[0] = CreateScore(bottom, font, 24, new Vector2(0f, -228f), new Vector2(300f, 30f));
+            decisions[0] = CreateDecision(bottom, font, new Vector2(110f, -196f));
 
-            var top = CreateRect(players, "TopPlayer", new Vector2(0f, 424f), new Vector2(360f, 220f));
-            CreateAvatar(top, avatars[2], Vector2.zero, 52f);
-            CreateName(top, font, "Player 3", 16, new Vector2(0f, -42f), new Vector2(200f, 24f));
-            scoreLabels[2] = CreateScore(top, font, 14, new Vector2(0f, -64f), new Vector2(210f, 22f));
-            var topHand = CreateRect(top, "HandCards", new Vector2(0f, -112f), new Vector2(280f, 70f));
+            var top = CreateRect(players, "TopPlayer", new Vector2(0f, 420f), new Vector2(380f, 240f));
+            CreateAvatar(top, avatars[2], new Vector2(0f, 20f), 84f);
+            CreateName(top, font, "Player 3", 24, new Vector2(0f, -38f), new Vector2(240f, 30f));
+            scoreLabels[2] = CreateScore(top, font, 22, new Vector2(0f, -68f), new Vector2(260f, 28f));
+            var topHand = CreateRect(top, "HandCards", new Vector2(0f, -132f), new Vector2(360f, 100f));
             PlaceBacks(topHand, backs, back, 13, false, SeatFormation.TopCardSize, SeatFormation.TopStep, SeatFormation.TopRotation);
-            decisions[2] = CreateDecision(top, font, new Vector2(78f, -42f));
+            decisions[2] = CreateDecision(top, font, new Vector2(105f, -38f));
 
-            var left = CreateRect(players, "LeftPlayer", new Vector2(-704f, 103f), new Vector2(280f, 280f));
-            CreateAvatar(left, avatars[1], Vector2.zero, 56f);
-            CreateName(left, font, "Player 2", 16, new Vector2(0f, -38f), new Vector2(150f, 24f));
-            scoreLabels[1] = CreateScore(left, font, 14, new Vector2(0f, -64f), new Vector2(180f, 36f));
-            var leftHand = CreateRect(left, "HandCards", new Vector2(128f, -79f), new Vector2(80f, 230f));
+            var left = CreateRect(players, "LeftPlayer", new Vector2(-740f, 85f), new Vector2(340f, 340f));
+            CreateAvatar(left, avatars[1], new Vector2(0f, 25f), 84f);
+            CreateName(left, font, "Player 2", 24, new Vector2(0f, -36f), new Vector2(220f, 30f));
+            scoreLabels[1] = CreateScore(left, font, 22, new Vector2(0f, -68f), new Vector2(240f, 28f));
+            var leftHand = CreateRect(left, "HandCards", new Vector2(148f, -25f), new Vector2(100f, 320f));
             PlaceBacks(leftHand, backs, back, 0, true, SeatFormation.SideCardSize, SeatFormation.SideStep, SeatFormation.LeftRotation);
-            decisions[1] = CreateDecision(left, font, new Vector2(0f, -92f));
+            decisions[1] = CreateDecision(left, font, new Vector2(0f, -102f));
 
-            var right = CreateRect(players, "RightPlayer", new Vector2(704f, 103f), new Vector2(280f, 280f));
-            var rightHand = CreateRect(right, "HandCards", new Vector2(-128f, -79f), new Vector2(80f, 230f));
+            var right = CreateRect(players, "RightPlayer", new Vector2(740f, 85f), new Vector2(340f, 340f));
+            var rightHand = CreateRect(right, "HandCards", new Vector2(-148f, -25f), new Vector2(100f, 320f));
             PlaceBacks(rightHand, backs, back, 26, true, SeatFormation.SideCardSize, SeatFormation.SideStep, SeatFormation.RightRotation);
-            CreateAvatar(right, avatars[3], Vector2.zero, 56f);
-            CreateName(right, font, "Player 4", 16, new Vector2(0f, -38f), new Vector2(150f, 24f));
-            scoreLabels[3] = CreateScore(right, font, 14, new Vector2(0f, -64f), new Vector2(180f, 36f));
-            decisions[3] = CreateDecision(right, font, new Vector2(0f, -92f));
+            CreateAvatar(right, avatars[3], new Vector2(0f, 25f), 84f);
+            CreateName(right, font, "Player 4", 24, new Vector2(0f, -36f), new Vector2(220f, 30f));
+            scoreLabels[3] = CreateScore(right, font, 22, new Vector2(0f, -68f), new Vector2(240f, 28f));
+            decisions[3] = CreateDecision(right, font, new Vector2(0f, -102f));
             center.SetAsLastSibling();
 
             var tableCards = new Image[16];
-            CreatePlayRow(board.transform, tableCards, 0, new Vector2(0f, -108f));
-            CreatePlayRow(board.transform, tableCards, 4, new Vector2(-196f, 0f));
-            CreatePlayRow(board.transform, tableCards, 8, new Vector2(0f, 108f));
-            CreatePlayRow(board.transform, tableCards, 12, new Vector2(196f, 0f));
+            CreatePlayRow(board.transform, tableCards, 0, new Vector2(0f, -120f));
+            CreatePlayRow(board.transform, tableCards, 4, new Vector2(-220f, 0f));
+            CreatePlayRow(board.transform, tableCards, 8, new Vector2(0f, 120f));
+            CreatePlayRow(board.transform, tableCards, 12, new Vector2(220f, 0f));
 
             var header = CreateImage(root, "Header", panel, new Color(0.05f, 0.28f, 0.34f, 0.96f), Vector2.zero, new Vector2(1920f, 52f));
             AnchorTopStretch((RectTransform)header.transform, 52f);
@@ -331,14 +331,14 @@ namespace Hazari.EditorTools
 
         static Text CreateScore(Transform parent, Font font, int size, Vector2 position, Vector2 bounds)
         {
-            var text = CreateText(parent, "Score", font, "Total: 0", size, new Color(1f, 0.84f, 0.42f), position, bounds, FontStyle.Bold);
+            var text = CreateText(parent, "Score", font, "0", size, new Color(1f, 0.84f, 0.42f), position, bounds, FontStyle.Bold);
             AddShadow(text);
             return text;
         }
 
         static GameObject CreateDecision(Transform parent, Font font, Vector2 position)
         {
-            var text = CreateText(parent, "DecisionVisual", font, "TURN", 13, new Color(1f, 0.9f, 0.45f), position, new Vector2(92f, 22f), FontStyle.Bold);
+            var text = CreateText(parent, "DecisionVisual", font, "TURN", 15, new Color(1f, 0.9f, 0.45f), position, new Vector2(100f, 26f), FontStyle.Bold);
             AddShadow(text);
             var cue = text.gameObject.AddComponent<SeatDecisionView>();
             SetRef(cue, "label", text);
@@ -348,13 +348,13 @@ namespace Hazari.EditorTools
 
         static void CreatePlayRow(Transform parent, Image[] tableCards, int start, Vector2 position)
         {
-            const float width = 54f;
-            const float step = 30f;
-            var row = CreateRect(parent, "Played_" + start, position, new Vector2(180f, 90f));
+            const float width = 64f;
+            const float step = 36f;
+            var row = CreateRect(parent, "Played_" + start, position, new Vector2(220f, 110f));
             var origin = -((4 - 1) * step) * 0.5f;
             for (var i = 0; i < 4; i++)
             {
-                var imageObject = CreateImage(row, "Card_" + i, null, Color.white, new Vector2(origin + i * step, 0f), new Vector2(width, 78f));
+                var imageObject = CreateImage(row, "Card_" + i, null, Color.white, new Vector2(origin + i * step, 0f), new Vector2(width, 90f));
                 var image = imageObject.GetComponent<Image>();
                 image.preserveAspect = true;
                 image.raycastTarget = false;
@@ -373,10 +373,10 @@ namespace Hazari.EditorTools
 
         static RectTransform CreateDeckPile(Transform parent, Sprite back)
         {
-            var pile = CreateRect(parent, "Deck", Vector2.zero, new Vector2(70f, 96f));
+            var pile = CreateRect(parent, "Deck", Vector2.zero, new Vector2(130f, 180f));
             for (var i = 0; i < 3; i++)
             {
-                var card = CreateImage(pile, "DeckCard" + i, back, Color.white, new Vector2(i * 2f, i * 2f), new Vector2(46f, 64f));
+                var card = CreateImage(pile, "DeckCard" + i, back, Color.white, new Vector2(i * 3f, i * 3f), new Vector2(115f, 160f));
                 var image = card.GetComponent<Image>();
                 image.preserveAspect = true;
                 image.raycastTarget = false;
@@ -387,11 +387,11 @@ namespace Hazari.EditorTools
 
         static RectTransform[] CreateShuffleCards(Transform parent, Sprite back)
         {
-            var root = CreateRect(parent, "ShuffleCards", Vector2.zero, new Vector2(180f, 90f));
+            var root = CreateRect(parent, "ShuffleCards", Vector2.zero, new Vector2(300f, 180f));
             var cards = new RectTransform[5];
             for (var i = 0; i < cards.Length; i++)
             {
-                var card = CreateImage(root, "ShuffleCard" + i, back, Color.white, Vector2.zero, new Vector2(46f, 64f));
+                var card = CreateImage(root, "ShuffleCard" + i, back, Color.white, Vector2.zero, new Vector2(115f, 160f));
                 var image = card.GetComponent<Image>();
                 image.preserveAspect = true;
                 image.raycastTarget = false;

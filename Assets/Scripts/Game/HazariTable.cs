@@ -525,13 +525,13 @@ namespace Hazari.Game
                 card.DOKill();
                 card.anchoredPosition = Vector2.zero;
                 card.localRotation = Quaternion.identity;
-                card.localScale = Vector3.one * 0.86f;
-                var spread = (i - (shuffleCards.Length - 1) * 0.5f) * 22f;
-                card.DOAnchorPos(new Vector2(spread, 8f), 0.22f).SetEase(Ease.OutCubic);
-                card.DOLocalRotate(new Vector3(0f, 0f, spread * 0.45f), 0.22f);
+                card.localScale = Vector3.one;
+                var spread = (i - (shuffleCards.Length - 1) * 0.5f) * 45f;
+                card.DOAnchorPos(new Vector2(spread, 12f), 0.24f).SetEase(Ease.OutCubic);
+                card.DOLocalRotate(new Vector3(0f, 0f, spread * 0.35f), 0.24f);
             }
 
-            yield return new WaitForSeconds(0.26f);
+            yield return new WaitForSeconds(0.28f);
 
             for (var i = 0; i < shuffleCards.Length; i++)
             {
@@ -539,11 +539,11 @@ namespace Hazari.Game
                 if (card == null)
                     continue;
 
-                card.DOAnchorPos(new Vector2(i * 1.5f, i * 1.5f), 0.18f).SetEase(Ease.InCubic);
-                card.DOLocalRotate(Vector3.zero, 0.18f);
+                card.DOAnchorPos(new Vector2(i * 2.5f, i * 2.5f), 0.2f).SetEase(Ease.InCubic);
+                card.DOLocalRotate(Vector3.zero, 0.2f);
             }
 
-            yield return new WaitForSeconds(0.2f);
+            yield return new WaitForSeconds(0.22f);
 
             for (var i = 0; i < shuffleCards.Length; i++)
             {
@@ -607,8 +607,8 @@ namespace Hazari.Game
         {
             var height = rect.sizeDelta.y;
             if (height < 1f)
-                return 0.35f;
-            return Mathf.Clamp(34f / height, 0.14f, 0.7f);
+                return 0.7f;
+            return Mathf.Clamp(160f / height, 0.5f, 1.8f);
         }
 
         RectTransform CardRect(int seat, int index)

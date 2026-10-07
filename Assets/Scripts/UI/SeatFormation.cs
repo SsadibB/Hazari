@@ -7,20 +7,20 @@ namespace Hazari.UI
     /// </summary>
     public static class SeatFormation
     {
-        public static readonly Vector2 BottomCardSize = new Vector2(134f, 186f);
-        public const float BottomStep = 100f;
+        public static readonly Vector2 BottomCardSize = new Vector2(165f, 230f);
+        public const float BottomStep = 112f;
 
-        public static readonly Vector2 TopCardSize = new Vector2(40f, 58f);
-        public const float TopStep = 15f;
+        public static readonly Vector2 TopCardSize = new Vector2(64f, 90f);
+        public const float TopStep = 22f;
         public const float TopRotation = 180f;
 
-        public static readonly Vector2 SideCardSize = new Vector2(46f, 68f);
-        public const float SideStep = 14f;
+        public static readonly Vector2 SideCardSize = new Vector2(64f, 90f);
+        public const float SideStep = 20f;
         public const float LeftRotation = -90f;
         public const float RightRotation = 90f;
-        public static readonly Vector2 CenterCardSize = new Vector2(90f, 126f);
-        public const float CenterStep = 86f;
-        public const float GroupGap = 28f;
+        public static readonly Vector2 CenterCardSize = new Vector2(115f, 160f);
+        public const float CenterStep = 96f;
+        public const float GroupGap = 32f;
 
         public static void Place(RectTransform rect, int index, int count, bool vertical, Vector2 size, float step, float rotation)
         {
